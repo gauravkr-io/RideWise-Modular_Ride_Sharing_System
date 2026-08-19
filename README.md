@@ -16,21 +16,23 @@ You register riders and drivers, request a ride, and the system picks a driver u
 ## Project layout
 
 ```
-src/com/ridewise/
-  model/        Rider, Driver, Ride, FareReceipt, Location, RideStatus, VehicleType
-  exception/    RideWiseException and its subtypes
-  strategy/
-    matching/   RideMatchingStrategy + NearestDriverStrategy, LeastActiveDriverStrategy
-    fare/       FareStrategy + DefaultFareStrategy, PeakHourFareStrategy
-  config/       PeakHourConfig (singleton holding peak-hour windows/multiplier)
-  factory/      StrategyFactory (turns a menu choice into a strategy instance)
-  service/      RiderService, DriverService, RideService
-  app/          Main — the console menu
+src/com/airtribe/ridewise/
+  Main.java       entry point / console menu
+  model/          Rider, Driver, Ride, FareReceipt, Location, RideStatus, VehicleType
+  strategy/       RideMatchingStrategy + NearestDriverStrategy, LeastActiveDriverStrategy
+                  FareStrategy + DefaultFareStrategy, PeakHourFareStrategy
+  service/        RiderService, DriverService, RideService
+  exception/      RideWiseException and its subtypes
+  util/           IdGenerator (shared id generation used by all three services)
+  config/         PeakHourConfig (singleton holding peak-hour windows/multiplier)
+  factory/        StrategyFactory (turns a menu choice into a strategy instance)
+docs/
+  Requirements.md, Class_Model.md, SOLID_Reflection.md, Object_Relationships.md
 ```
 
 ## How the design maps to the brief
 
-**Strategy pattern for matching and pricing.** `RideMatchingStrategy` and `FareStrategy` are the only two interfaces `RideService` knows about. It's handed concrete implementations through its constructor (`NearestDriverStrategy` or `LeastActiveDriverStrategy`, `DefaultFareStrategy` or `PeakHourFareStrategy`), so adding a third matching algorithm or pricing scheme later means writing one new class, not editing `RideService`.
+**Strategy pattern for matching and pricing.** `RideMatchingStrategy` and `FareStrategy` are the only two interfaces `RideService` knows about. It's handed concrete implementations through its constructor (`NearestDriverStrategy` or `LeastActiveDriverStrategy`; `DefaultFareStrategy` or `PeakHourFareStrategy`), so adding a third matching algorithm or pricing scheme later means writing one new class, not editing `RideService`.
 
 **Composition over inheritance.** `PeakHourFareStrategy` doesn't extend `DefaultFareStrategy` — it wraps a `FareStrategy` and multiplies its result during peak hours. That means it works on top of *any* base strategy, not just the default one.
 
@@ -42,10 +44,12 @@ src/com/ridewise/
 
 **Singleton for shared config.** `PeakHourConfig` holds the peak-hour time windows and multiplier. There's only one sensible set of these values for the whole app, so it's a singleton rather than something each `PeakHourFareStrategy` instance builds for itself.
 
+**One shared id generator.** All three services previously kept their own private counter for turning "register a rider" into `R7`. That's now centralized in `util/IdGenerator.java`, so the id-formatting logic exists in exactly one place.
+
 ### A couple of judgment calls worth flagging
 
 - **Ride distance isn't typed in by the user.** It's computed from the rider's and the assigned driver's `Location` — the same data `NearestDriverStrategy` already uses. Asking the user to also type in a distance would just be a second, possibly-inconsistent source of truth for the same trip.
-- **`RideService.cancelRide()` exists but isn't wired into the console menu.** The brief's menu only lists seven options and none of them is "cancel," but `RideStatus.CANCELLED` is a required state, so the state transition is implemented and can be called directly or exposed as an eighth menu option later without changing `RideService`.
+- **`RideService.cancelRide()` exists but isn't wired into the console menu.** The menu only lists seven options and none of them is "cancel," but `RideStatus.CANCELLED` is a required state, so the state transition is implemented and can be called directly or exposed as an eighth menu option later without changing `RideService`.
 - **Vehicle type affects the fare.** `VehicleType` (BIKE/AUTO/CAR) is attached to `Driver` and used by `DefaultFareStrategy` to pick a per-km rate — otherwise the enum would exist but never actually influence anything.
 
 ## Requirements
@@ -56,6 +60,8 @@ See `SETUP.md` for exact build/run commands.
 
 ## Known limitations
 
-- Everything is in-memory, data is gone when the program exits.
+- Everything is in-memory; data is gone when the program exits.
 - Single-threaded console app — no concurrent ride requests to worry about.
 - No persistence layer, no REST API — out of scope for this assignment.
+
+See `docs/` for the fuller writeup — requirements, class model, a SOLID-by-SOLID reflection, and the object relationship table.
